@@ -1,0 +1,116 @@
+-- Services
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+-- Local player
+local LocalPlayer = Players.LocalPlayer
+
+-- Configuration
+local Config = {
+    PartEnabled = false,
+    PartSize = Vector3.new(5, 0.1, 5),
+    PartColor = Color3.new(1, 0, 0),  -- Red color (won't be visible when Transparency is 1)
+    PartTransparency = 1,  -- Fully transparent
+    ToggleKey = Enum.KeyCode.F5,
+    FloatSpeed = 50,  -- Speed of floating up
+    SinkSpeed = 0.5,   -- Speed of sinking down
+    MaxFloatHeight = 100,  -- Maximum height the part can float
+    MinFloatHeight = 0    -- Minimum height (ground level)
+}
+
+-- The toggle part
+local TogglePart = nil
+local IsFloating = false
+local IsSinking = false
+local BaseHeight = 0
+
+-- Function to create or update the toggle part
+local function UpdateTogglePart()
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        return
+    end
+
+    if not TogglePart then
+        TogglePart = Instance.new("Part")
+        TogglePart.Anchored = true
+        TogglePart.CanCollide = false
+        TogglePart.Name = "TogglePart"
+        TogglePart.Parent = workspace
+    end
+
+    TogglePart.Size = Config.PartSize
+    TogglePart.Color = Config.PartColor
+    TogglePart.Transparency = Config.PartTransparency
+
+    -- Position the part under the player
+    local hrp = LocalPlayer.Character.HumanoidRootPart
+    local targetY = hrp.Position.Y - (hrp.Size.Y/2 + TogglePart.Size.Y/2)
+    
+    if IsFloating then
+        targetY = math.min(BaseHeight + Config.MaxFloatHeight, targetY + Config.FloatSpeed)
+    elseif IsSinking then
+        targetY = math.max(BaseHeight + Config.MinFloatHeight, targetY - Config.SinkSpeed)
+    else
+        BaseHeight = targetY
+    end
+
+    TogglePart.Position = Vector3.new(hrp.Position.X, targetY, hrp.Position.Z)
+    TogglePart.Visible = Config.PartEnabled
+end
+
+-- Function to toggle the part
+local function TogglePart()
+    Config.PartEnabled = not Config.PartEnabled
+    if Config.PartEnabled then
+        print("Toggle Part Enabled")
+    else
+        print("Toggle Part Disabled")
+    end
+    UpdateTogglePart()
+end
+
+-- Connect the toggle function to the F5 key
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed then
+        if input.KeyCode == Config.ToggleKey then
+            TogglePart()
+        elseif input.KeyCode == Enum.KeyCode.Space then
+            IsFloating = true
+        elseif input.KeyCode == Enum.KeyCode.R then
+            IsSinking = true
+        end
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input, gameProcessed)
+    if not gameProcessed then
+        if input.KeyCode == Enum.KeyCode.Space then
+            IsFloating = false
+        elseif input.KeyCode == Enum.KeyCode.R then
+            IsSinking = false
+        end
+    end
+end)
+
+-- Update the toggle part's position when the character moves
+local function OnCharacterAdded(character)
+    local humanoid = character:WaitForChild("Humanoid")
+    humanoid.MoveToFinished:Connect(UpdateTogglePart)
+end
+
+LocalPlayer.CharacterAdded:Connect(OnCharacterAdded)
+
+-- Initial setup
+if LocalPlayer.Character then
+    OnCharacterAdded(LocalPlayer.Character)
+end
+
+-- Main loop to continuously update the part's position
+RunService.Heartbeat:Connect(function()
+    if Config.PartEnabled then
+        UpdateTogglePart()
+    end
+end)
+
+print("Script loaded. Press F5 to toggle the invisible part. Hold Space to float up, R to sink down.")
